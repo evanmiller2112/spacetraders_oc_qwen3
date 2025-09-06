@@ -10,6 +10,7 @@ struct AgentData {
     starting_faction: String,
     symbol: String, 
     credits: i64,
+    headquarters: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -29,10 +30,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let client = reqwest::Client::new();
     
-    // Make the correct API call to get agent info
+    // Get agent info first
+    println!("\n=== Getting Agent Information ===");
     let url = "https://api.spacetraders.io/v2/my/agent";
-    
-    println!("Making request to: {}", url);
     
     let response = client
         .get(url)
@@ -42,11 +42,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         
     println!("Response status: {}", response.status());
     
-    // Get the raw text for debugging
     let raw_text = response.text().await?;
-    println!("Raw API response: {}", raw_text);
     
-    // Parse the full response
     match serde_json::from_str::<AgentResponse>(&raw_text) {
         Ok(agent_response) => {
             let agent = agent_response.data;
@@ -54,6 +51,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Symbol: {}", agent.symbol);
             println!("Faction: {}", agent.starting_faction);
             println!("Credits: {}", agent.credits);
+            println!("Headquarters: {}", agent.headquarters);
+            
+            // Now let's get information about our starting system
+            println!("\n=== Starting Location Analysis ===");
+            
+            // The headquarters symbol (e.g. X1-QD10-A1) contains:
+            // - X1: system identifier
+            // We can get more specific info about our starting location
+            
+            let parts: Vec<&str> = agent.headquarters.split('-').collect();
+            if parts.len() >= 2 {
+                let system_symbol = format!("{}-{}", parts[0], parts[1]);
+                println!("Starting System: {}", system_symbol);
+                
+                // Let's try to get more specific waypoint info  
+                println!("Starting Waypoint: {}", agent.headquarters);
+            }
         }
         Err(e) => {
             println!("\nError parsing agent data: {:?}", e);
