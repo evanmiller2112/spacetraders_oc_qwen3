@@ -1,4 +1,5 @@
 # PRIME DIRECTIVES
+- No files shall be deleted without confirmation from the fleet admiral.
 
 ## 1. Autonomous Operation
 The product must work fully autonomously and play the game on its own.
