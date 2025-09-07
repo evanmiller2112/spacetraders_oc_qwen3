@@ -3,11 +3,23 @@
 use reqwest;
 use serde_json;
 
+/// Structure to hold contract data
+#[derive(Debug)]
+pub struct ContractInfo {
+    pub id: String,
+    pub faction_symbol: String,
+    pub contract_type: String,
+    pub delivery_item: Option<String>,
+    pub destination_symbol: Option<String>,
+    pub units_required: i64,
+    pub payment_on_fulfillment: i64,
+}
+
 /// Gets contracts information from the SpaceTraders API
 pub async fn get_contracts(
     client: &reqwest::Client,
     token: &str
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<Option<Vec<ContractInfo>>, Box<dyn std::error::Error>> {
     println!("\n=== Getting Contracts ===");
     
     let contracts_url = "https://api.spacetraders.io/v2/my/contracts";
@@ -25,6 +37,8 @@ pub async fn get_contracts(
     println!("\n=== Contract Information ===");
     
     // Parse and pretty print contracts
+    let mut contract_list = Vec::new();
+    
     match serde_json::from_str::<serde_json::Value>(&contracts_text) {
         Ok(contracts_value) => {
             if let Some(contracts_array) = contracts_value.get("data") {
@@ -35,43 +49,70 @@ pub async fn get_contracts(
                         for (index, contract) in contracts.iter().enumerate() {
                             println!("\n--- Contract #{} ---", index + 1);
                             
-                            if let Some(contract_id) = contract.get("id") {
-                                println!("ID: {}", contract_id);
+                            let id = contract.get("id").and_then(|s| s.as_str()).unwrap_or("").to_string();
+                            let faction_symbol = contract.get("factionSymbol").and_then(|s| s.as_str()).unwrap_or("").to_string();
+                            let contract_type = contract.get("type").and_then(|s| s.as_str()).unwrap_or("").to_string();
+                            
+                            let (delivery_item, destination_symbol, units_required, payment_on_fulfillment) = 
+                                if let Some(terms) = contract.get("terms") {
+                                    // Get delivery information
+                                    let (delivery_item, destination_symbol, units_required) = 
+                                        if let Some(deliver_array) = terms.get("deliver").and_then(|d| d.as_array()) {
+                                            if let Some(deliver) = deliver_array.first() {
+                                                (
+                                                    deliver.get("tradeSymbol").and_then(|s| s.as_str()).map(|s| s.to_string()),
+                                                    deliver.get("destinationSymbol").and_then(|s| s.as_str()).map(|s| s.to_string()),
+                                                    deliver.get("unitsRequired").and_then(|u| u.as_i64()).unwrap_or(0)
+                                                )
+                                            } else {
+                                                (None, None, 0)
+                                            }
+                                        } else {
+                                            (None, None, 0)
+                                        };
+                                    
+                                    // Get payment information
+                                    let payment_on_fulfillment = 
+                                        if let Some(payment) = terms.get("payment") {
+                                            payment.get("onFulfilled").and_then(|p| p.as_i64()).unwrap_or(0)
+                                        } else {
+                                            0
+                                        };
+                                    
+                                    (delivery_item, destination_symbol, units_required, payment_on_fulfillment)
+                                } else {
+                                    (None, None, 0, 0)
+                                };
+                            
+                            println!("ID: {}", id);
+                            println!("Faction: {}", faction_symbol);
+                            println!("Type: {}", contract_type);
+                            
+                            if let Some(item) = &delivery_item {
+                                println!("Delivery Item: {}", item);
                             }
                             
-                            if let Some(faction_symbol) = contract.get("factionSymbol") {
-                                println!("Faction: {}", faction_symbol);
+                            if let Some(destination) = &destination_symbol {
+                                println!("Destination: {}", destination);
                             }
                             
-                            if let Some(contract_type) = contract.get("type") {
-                                println!("Type: {}", contract_type);
-                            }
-                            
-                            if let Some(terms) = contract.get("terms") {
-                                if let Some(deliver_array) = terms.get("deliver").and_then(|d| d.as_array()) {
-                                    if let Some(deliver) = deliver_array.first() {
-                                        if let Some(trade_symbol) = deliver.get("tradeSymbol") {
-                                            println!("Delivery Item: {}", trade_symbol);
-                                        }
-                                        if let Some(destination) = deliver.get("destinationSymbol") {
-                                            println!("Destination: {}", destination);
-                                        }
-                                        if let Some(units_required) = deliver.get("unitsRequired") {
-                                            println!("Units Required: {}", units_required);
-                                        }
-                                    }
-                                }
-                                
-                                if let Some(payment) = terms.get("payment") {
-                                    if let Some(on_fulfilled) = payment.get("onFulfilled") {
-                                        println!("Payment on Fulfillment: {} credits", on_fulfilled);
-                                    }
-                                }
-                            }
+                            println!("Units Required: {}", units_required);
+                            println!("Payment on Fulfillment: {} credits", payment_on_fulfillment);
                             
                             if let Some(accepted) = contract.get("accepted") {
                                 println!("Accepted: {}", accepted);
                             }
+                            
+                            // Store the contract info
+                            contract_list.push(ContractInfo {
+                                id,
+                                faction_symbol,
+                                contract_type,
+                                delivery_item,
+                                destination_symbol,
+                                units_required,
+                                payment_on_fulfillment
+                            });
                         }
                     }
                 }
@@ -82,5 +123,5 @@ pub async fn get_contracts(
         }
     }
     
-    Ok(())
+    Ok(Some(contract_list))
 }
