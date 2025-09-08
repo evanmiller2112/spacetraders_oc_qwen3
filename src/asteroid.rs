@@ -12,6 +12,23 @@ pub struct AsteroidInfo {
     pub materials: Vec<String>,
 }
 
+/// Structure to hold survey information
+#[derive(Debug, Clone)]
+pub struct SurveyInfo {
+    pub symbol: String,
+    pub deposits: Vec<String>,
+    pub expiration: u64, // Unix timestamp when survey expires
+    pub size: SurveySize,
+}
+
+/// Size of a survey
+#[derive(Debug, Clone)]
+pub enum SurveySize {
+    Small,
+    Medium,
+    Large,
+}
+
 /// Finds asteroids in a system that contain specific materials
 pub async fn scan_for_asteroids_with_materials(
     client: &reqwest::Client,
@@ -110,8 +127,86 @@ pub async fn scan_for_asteroids_with_materials(
     Ok(())
 }
 
+/// Performs a survey on an asteroid waypoint
+pub async fn survey_asteroid(
+    client: &reqwest::Client,
+    token: &str,
+    waypoint_symbol: &str
+) -> Result<SurveyInfo, Box<dyn std::error::Error>> {
+    println!("\n=== Surveying asteroid ===");
+    println!("Waypoint: {}", waypoint_symbol);
+    
+    // Create the survey request
+    let survey_url = format!("https://api.spacetraders.io/v2/waypoints/{}/survey", waypoint_symbol);
+    
+    let response = client
+        .post(&survey_url)
+        .header("Authorization", format!("Bearer {}", token))
+        .send()
+        .await?;
+        
+    println!("Survey response status: {}", response.status());
+    
+    let survey_text = response.text().await?;
+    
+    // Parse the survey data
+    match serde_json::from_str::<serde_json::Value>(&survey_text) {
+        Ok(survey_value) => {
+            if let Some(data) = survey_value.get("data") {
+                // Get the survey information
+                if let Some(survey) = data.get("survey") {
+                    // Parse the survey details
+                    let symbol = survey.get("symbol").and_then(|s| s.as_str()).unwrap_or("").to_string();
+                    let expiration = survey.get("expiration").and_then(|e| e.as_u64()).unwrap_or(0);
+                    
+                    // Parse deposits
+                    let mut deposits = Vec::new();
+                    if let Some(deposit_array) = survey.get("deposits").and_then(|d| d.as_array()) {
+                        for deposit in deposit_array {
+                            if let Some(deposit_symbol) = deposit.get("symbol").and_then(|s| s.as_str()) {
+                                deposits.push(deposit_symbol.to_string());
+                            }
+                        }
+                    }
+                    
+                    // Parse size
+                    let size = match survey.get("size").and_then(|s| s.as_str()) {
+                        Some("SMALL") => SurveySize::Small,
+                        Some("MEDIUM") => SurveySize::Medium,
+                        Some("LARGE") => SurveySize::Large,
+                        _ => SurveySize::Small, // Default to small if unknown
+                    };
+                    
+                    let survey_info = SurveyInfo {
+                        symbol,
+                        deposits,
+                        expiration,
+                        size
+                    };
+                    
+                    println!("Survey completed successfully:");
+                    println!("  Symbol: {}", survey_info.symbol);
+                    println!("  Deposits: {:?}", survey_info.deposits);
+                    println!("  Size: {:?}", survey_info.size);
+                    println!("  Expiration: {}", survey_info.expiration);
+                    
+                    Ok(survey_info)
+                } else {
+                    Err("Could not parse survey data".into())
+                }
+            } else {
+                Err("Could not find survey data in response".into())
+            }
+        },
+        Err(e) => {
+            println!("Error parsing survey data: {:?}", e);
+            Err("Could not parse survey response".into())
+        }
+    }
+}
+
 /// Get the agent's current position
-async fn get_agent_position(
+pub async fn get_agent_position(
     client: &reqwest::Client,
     token: &str
 ) -> Result<(i32, i32), Box<dyn std::error::Error>> {

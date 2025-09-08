@@ -319,7 +319,7 @@ mod tests {
     #[tokio::test]
     async fn test_parse_contracts_empty() {
         // Test parsing empty contracts response
-        let json_response = json!({
+        let _json_response = json!({
             "data": []
         });
         
