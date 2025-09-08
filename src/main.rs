@@ -2,6 +2,7 @@
 
 use reqwest;
 use spacetraders_oc_qwen3::agent;
+use spacetraders_oc_qwen3::agent_management;
 use spacetraders_oc_qwen3::contracts;
 use spacetraders_oc_qwen3::token;
 use spacetraders_oc_qwen3::asteroid;
@@ -20,7 +21,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = reqwest::Client::new();
     
     // Get agent info first
-    let agent_data = agent::get_agent_info(&client, &clean_token).await?;
+    let agent_data = agent_management::get_agent_info(&client, &clean_token).await?;
     
     // Try to get contracts
     let _contract_data = contracts::get_contracts(&client, &clean_token).await?;

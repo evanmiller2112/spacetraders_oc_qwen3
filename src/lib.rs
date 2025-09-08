@@ -1,6 +1,7 @@
 //! SpaceTraders OC Qwen3
 
 pub mod agent;
+pub mod agent_management;
 pub mod asteroid;
 pub mod contracts;
 pub mod distance;

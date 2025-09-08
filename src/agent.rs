@@ -4,7 +4,7 @@ use reqwest;
 use serde_json;
 
 /// Structure to hold agent data
-#[derive(Debug)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct AgentInfo {
     pub symbol: String,
     pub faction: String,
@@ -31,7 +31,7 @@ pub async fn get_agent_info(
     println!("Response status: {}", response.status());
     
     let raw_text = response.text().await?;
-    println!("Raw agent data: {}", raw_text);
+    println!("Raw agent data: {}...", &raw_text[..std::cmp::min(200, raw_text.len())]);
     
     // Try to parse the response
     let agent_info = match serde_json::from_str::<serde_json::Value>(&raw_text) {
